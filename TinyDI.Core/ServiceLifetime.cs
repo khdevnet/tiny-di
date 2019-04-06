@@ -1,6 +1,6 @@
 namespace TinyDI.Core
 {
-    public enum NSubLifetime
+    public enum ServiceLifetime
     {
         /// <summary>
         /// Value is created only once.

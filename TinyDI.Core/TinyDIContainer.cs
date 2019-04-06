@@ -1,33 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 namespace TinyDI.Core
 {
     /// <summary>
     /// Tiny and very limited implementation of the DI services.
-    /// Container supports the following features required by NSubstitute:
+    /// Container supports the following features required by DI:
     ///     - Registration by type with automatic constructor injection
     ///     - Registration of factory methods for the complex objects
     ///     - Support of the most required lifetimes:
-    ///         - <see cref="NSubLifetime.Transient" />
-    ///         - <see cref="NSubLifetime.PerScope" />
-    ///         - <see cref="NSubLifetime.Singleton" />
+    ///         - <see cref="ServiceLifetime.Transient" />
+    ///         - <see cref="ServiceLifetime.PerScope" />
+    ///         - <see cref="ServiceLifetime.Singleton" />
     ///     - Immutability (via interfaces) and customization by creating a nested container
     /// </summary>
-    public class NSubContainer : IConfigurableNSubContainer
+    public class TinyDIContainer : IConfigurableTinyDIContainer
     {
-        private readonly NSubContainer _parentContainer;
+        private readonly TinyDIContainer _parentContainer;
         private readonly object _syncRoot;
         private readonly Dictionary<Type, Registration> _registrations = new Dictionary<Type, Registration>();
 
-        public NSubContainer()
+        public TinyDIContainer()
         {
             _syncRoot = new object();
         }
 
-        private NSubContainer(NSubContainer parentContainer)
+        private TinyDIContainer(TinyDIContainer parentContainer)
         {
             _parentContainer = parentContainer;
 
@@ -38,7 +37,7 @@ namespace TinyDI.Core
 
         public T Resolve<T>() => CreateScope().Resolve<T>();
 
-        public IConfigurableNSubContainer Register<TKey, TImpl>(NSubLifetime lifetime) where TImpl : TKey
+        public IConfigurableTinyDIContainer Register<TKey, TImpl>(ServiceLifetime lifetime) where TImpl : TKey
         {
             var constructors = typeof(TImpl).GetConstructors();
             if (constructors.Length != 1)
@@ -63,7 +62,7 @@ namespace TinyDI.Core
             return this;
         }
 
-        public IConfigurableNSubContainer Register<TKey>(Func<INSubResolver, TKey> factory, NSubLifetime lifetime)
+        public IConfigurableTinyDIContainer Register<TKey>(Func<ITinyDIResolver, TKey> factory, ServiceLifetime lifetime)
         {
             object Factory(Scope scope)
             {
@@ -75,12 +74,12 @@ namespace TinyDI.Core
             return this;
         }
 
-        public IConfigurableNSubContainer Customize()
+        public IConfigurableTinyDIContainer Customize()
         {
-            return new NSubContainer(this);
+            return new TinyDIContainer(this);
         }
 
-        public INSubResolver CreateScope()
+        public ITinyDIResolver CreateScope()
         {
             return new Scope(this);
         }
@@ -96,10 +95,10 @@ namespace TinyDI.Core
         private class Registration
         {
             private readonly Func<Scope, object> _factory;
-            private readonly NSubLifetime _lifetime;
+            private readonly ServiceLifetime _lifetime;
             private object _singletonValue;
 
-            public Registration(Func<Scope, object> factory, NSubLifetime lifetime)
+            public Registration(Func<Scope, object> factory, ServiceLifetime lifetime)
             {
                 _factory = factory;
                 _lifetime = lifetime;
@@ -109,13 +108,13 @@ namespace TinyDI.Core
             {
                 switch (_lifetime)
                 {
-                    case NSubLifetime.Transient:
+                    case ServiceLifetime.Transient:
                         return _factory.Invoke(scope);
 
-                    case NSubLifetime.Singleton:
+                    case ServiceLifetime.Singleton:
                         return _singletonValue ?? (_singletonValue = _factory.Invoke(scope));
 
-                    case NSubLifetime.PerScope:
+                    case ServiceLifetime.PerScope:
                         if (scope.TryGetCached(this, out var result))
                         {
                             return result;
@@ -131,19 +130,19 @@ namespace TinyDI.Core
             }
         }
 
-        private class Scope : INSubResolver
+        private class Scope : ITinyDIResolver
         {
             private readonly Dictionary<Registration, object> _cache = new Dictionary<Registration, object>();
-            private readonly NSubContainer _mostNestedContainer;
+            private readonly TinyDIContainer _mostNestedContainer;
 
-            public Scope(NSubContainer mostNestedContainer)
+            public Scope(TinyDIContainer mostNestedContainer)
             {
                 _mostNestedContainer = mostNestedContainer;
             }
 
             public T Resolve<T>()
             {
-                return (T) Resolve(typeof(T));
+                return (T)Resolve(typeof(T));
             }
 
             public bool TryGetCached(Registration registration, out object result)
